@@ -28,15 +28,23 @@ const generateTokens = (user) => {
 const getCookieOptions = () => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax", // lax for development
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // lax for development
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 });
 
 // User signup
 const userSignUp = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, phoneNumber, password, username } = req.body;
+  const { firstName, lastName, email, phoneNumber, password, username } =
+    req.body;
 
-  if (!firstName || !lastName || !email || !phoneNumber || !password || !username) {
+  if (
+    !firstName ||
+    !lastName ||
+    !email ||
+    !phoneNumber ||
+    !password ||
+    !username
+  ) {
     res.status(400);
     throw new Error("Please fill in all fields");
   }
@@ -51,7 +59,14 @@ const userSignUp = asyncHandler(async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const newUser = await prisma.user.create({
-    data: { firstName, lastName, username, email, phoneNumber, password: hashedPassword },
+    data: {
+      firstName,
+      lastName,
+      username,
+      email,
+      phoneNumber,
+      password: hashedPassword,
+    },
   });
 
   res.status(201).json({
@@ -77,7 +92,7 @@ const userSignIn = asyncHandler(async (req, res) => {
 
   // Clean up any existing sessions for this user (optional)
   await prisma.session.deleteMany({
-    where: { userId: user.id }
+    where: { userId: user.id },
   });
 
   const { accessToken, refreshToken } = generateTokens(user);
@@ -96,15 +111,15 @@ const userSignIn = asyncHandler(async (req, res) => {
   // Set refresh token in HttpOnly cookie
   res.cookie("refreshToken", refreshToken, getCookieOptions());
 
-  res.json({ 
+  res.json({
     accessToken,
     user: {
       id: user.id,
       email: user.email,
       username: user.username,
       firstName: user.firstName,
-      lastName: user.lastName
-    }
+      lastName: user.lastName,
+    },
   });
 });
 
@@ -116,25 +131,25 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   //console.log("=== REFRESH TOKEN DEBUG ===");
   //console.log("Cookies received:", req.cookies);
   //console.log("Headers:", req.headers);
-  
+
   const refreshToken = req.cookies?.refreshToken;
- // console.log("Extracted refreshToken:", refreshToken ? "EXISTS" : "NULL");
-  
+  // console.log("Extracted refreshToken:", refreshToken ? "EXISTS" : "NULL");
+
   if (!refreshToken) {
     //console.log("❌ No refresh token found in cookies");
     return res.status(401).json({ error: "No refresh token found" });
   }
 
-//  console.log("🔍 Looking for session in database...");
+  //  console.log("🔍 Looking for session in database...");
   const session = await prisma.session.findUnique({
     where: { refreshToken },
     include: { user: true },
   });
 
-//  console.log("Session found:", session ? "YES" : "NO");
-  
+  //  console.log("Session found:", session ? "YES" : "NO");
+
   if (!session) {
-   // console.log("❌ No session found for this refresh token");
+    // console.log("❌ No session found for this refresh token");
     return res.status(401).json({ error: "Invalid refresh token" });
   }
 
@@ -148,7 +163,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
     return res.status(401).json({ error: "Refresh token expired" });
   }
@@ -158,7 +173,9 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     console.log("✅ JWT signature valid");
 
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(session.user);
+    const { accessToken, refreshToken: newRefreshToken } = generateTokens(
+      session.user
+    );
     console.log("🔄 Generated new tokens");
 
     // Update session
@@ -178,10 +195,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
-    
+
     console.log("🍪 Setting new cookie with options:", cookieOptions);
     res.cookie("refreshToken", newRefreshToken, cookieOptions);
 
@@ -193,7 +210,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
     return res.status(401).json({ error: "Invalid refresh token" });
   }
@@ -205,18 +222,18 @@ const currentUser = asyncHandler(async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: "User not authenticated" });
   }
-  
+
   res.json(req.user);
 });
 
 // User signout
 const userSignout = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.refreshToken;
-  
+
   if (refreshToken) {
     // Delete session from DB
     await prisma.session.deleteMany({
-      where: { refreshToken }
+      where: { refreshToken },
     });
   }
 
@@ -224,8 +241,8 @@ const userSignout = asyncHandler(async (req, res) => {
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
-    path: "/" // ensure we're clearing the right cookie
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    path: "/", // ensure we're clearing the right cookie
   });
 
   res.status(200).json({ message: "Signed out successfully" });
@@ -234,7 +251,7 @@ const userSignout = asyncHandler(async (req, res) => {
 // Optional: Check if refresh token exists and is valid
 const checkRefreshToken = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.refreshToken;
-  
+
   if (!refreshToken) {
     return res.status(401).json({ hasValidRefreshToken: false });
   }
@@ -255,11 +272,11 @@ const checkRefreshToken = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = { 
-  userSignUp, 
-  userSignIn, 
-  refreshAccessToken, 
-  currentUser, 
+module.exports = {
+  userSignUp,
+  userSignIn,
+  refreshAccessToken,
+  currentUser,
   userSignout,
-  checkRefreshToken 
+  checkRefreshToken,
 };

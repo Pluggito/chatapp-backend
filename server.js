@@ -21,7 +21,6 @@ app.use(cors({
 app.use('/chatserver/auth', require('./routes/authroutes'));
 app.use('/chatserver/chat', require('./routes/chatroomroutes'));
 app.use('/chatserver/users', require('./routes/userroutes'));
-
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
