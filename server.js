@@ -44,6 +44,7 @@ io.on("connection", (socket) => {
   // Receive and broadcast message
   socket.on("sendMessage", ({ chatRoomId, message }) => {
     socket.to(chatRoomId).emit("newMessage", message);
+    io.emit("chatListUpdate", { chatRoomId, message });
   });
 
   socket.on("disconnect", () => {
