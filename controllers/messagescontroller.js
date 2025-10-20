@@ -9,11 +9,11 @@ const getMessages = asyncHandler(async (req, res) => {
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
   const messages = await prisma.message.findMany({
-    where: { 
-      chatRoomId: chatRoomId, 
+    where: {
+      chatRoomId: chatRoomId,
       system: { not: true } // Exclude system messages from display
     },
-    include: { 
+    include: {
       user: { // Note: your schema uses 'user' not 'sender'
         select: {
           id: true,
@@ -35,7 +35,7 @@ const getMessages = asyncHandler(async (req, res) => {
     content: message.content,
     createdAt: message.createdAt,
     senderId: message.userId, // Frontend expects 'senderId'
-    sender: message.user,     // Frontend expects 'sender'
+    sender: message.user, // Frontend expects 'sender'
     system: message.system,
     chatRoomId: message.chatRoomId
   }));
@@ -59,6 +59,20 @@ const sendMessage = asyncHandler(async (req, res) => {
       members: {
         some: {
           userId: String(senderId)
+        }
+      }
+    },
+    include: {
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              username: true,
+            }
+          }
         }
       }
     }
@@ -101,15 +115,33 @@ const sendMessage = asyncHandler(async (req, res) => {
     content: message.content,
     createdAt: message.createdAt,
     senderId: message.userId, // Frontend expects 'senderId'
-    sender: message.user,     // Frontend expects 'sender'
+    sender: message.user, // Frontend expects 'sender'
     system: message.system,
     chatRoomId: message.chatRoomId
   };
 
+  // ✅ EMIT SOCKET EVENT TO ALL MEMBERS IN THE CHATROOM
+  const io = req.app.get('io'); // Get socket.io instance from app
+  
+  if (io) {
+    // Emit to the room (people actively in the chat)
+    io.to(chatRoomId).emit("newMessage", transformedMessage);
+    
+    // ✅ CRITICAL: Emit chatListUpdate to ALL members (even those not in the room)
+    chatRoom.members.forEach(member => {
+      io.to(member.userId).emit("chatListUpdate", {
+        chatRoomId: chatRoomId,
+        message: transformedMessage
+      });
+    });
+    
+    // console.log(`📤 Emitted chatListUpdate to ${chatRoom.members.length} members`);
+  }
+
   res.status(201).json(transformedMessage);
 });
 
-module.exports = { 
+module.exports = {
   getMessages,
-  sendMessage 
+  sendMessage
 };
