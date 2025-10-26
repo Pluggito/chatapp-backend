@@ -4,8 +4,8 @@ const setupSocket = (server) => {
   const io = new Server(server, {
     cors: {
       origin: [
-        "https://convo-chat-xi.vercel.app/",
-        "http://localhost:5173/"
+        "https://convo-chat-xi.vercel.app",
+        "http://localhost:5173"
       ],
       methods: ["GET", "POST"],
       credentials: true
@@ -16,6 +16,8 @@ const setupSocket = (server) => {
   });
 
   io.on("connection", (socket) => {
+    console.log("✅ Socket connected:", socket.id);
+
     const userId = socket.handshake.query.userId;
     if (userId) socket.join(userId);
 
@@ -27,8 +29,8 @@ const setupSocket = (server) => {
       socket.leave(chatRoomId);
     });
 
-    socket.on("sendMessage", ({ chatRoomId, message }) => {
-      io.to(chatRoomId).emit("newMessage", message);
+    socket.on("disconnect", () => {
+      console.log("❌ Socket disconnected:", socket.id);
     });
   });
 
