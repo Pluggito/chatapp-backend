@@ -54,10 +54,11 @@ model ChatRoom {
 }
 
 model ChatMember {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   chatRoomId String
-  joinedAt   DateTime @default(now())
+  joinedAt   DateTime  @default(now())
+  lastReadAt DateTime? // tracks last time member read messages in the chat
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
@@ -66,16 +67,27 @@ model ChatMember {
 }
 
 model Message {
-  id         String   @id @default(cuid())
+  id         String      @id @default(cuid())
   chatRoomId String
   userId     String
-  content    String
-  createdAt  DateTime @default(now())
-  system     Boolean  @default(false)
+  content    String? // for text content; can be null for audio/image messages
+  type       MessageType @default(TEXT)
+  mediaUrl   String? // URL to audio/image if applicable
+  duration   Int? // optional audio duration in seconds
+  readers    String[]    @default([]) // userIds who have read this message (Postgres text[])
+  createdAt  DateTime    @default(now())
+  system     Boolean     @default(false)
 
   chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([chatRoomId])
   @@index([userId])
+}
+
+enum MessageType {
+  TEXT
+  AUDIO
+  IMAGE
+  SYSTEM
 }

@@ -3,37 +3,62 @@ const { Server } = require("socket.io");
 const setupSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: [
-        "https://convo-chat-xi.vercel.app",
-        "http://localhost:5173"
-      ],
-      methods: ["GET", "POST"],
-      credentials: true
+      origin: "*", // Adjust as needed for production
+      credentials: true,
     },
-    transports: ["websocket", "polling"],
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
   });
 
   io.on("connection", (socket) => {
-    console.log("✅ Socket connected:", socket.id);
-
     const userId = socket.handshake.query.userId;
-    if (userId) socket.join(userId);
+    
+    if (userId) {
+      // ✅ Join user to their personal room (for chatListUpdate)
+      socket.join(userId);
+      // console.log(`✅ User ${userId} connected (Socket ID: ${socket.id})`);
+    } else {
+      console.warn("⚠️ User connected without userId");
+    }
 
+    // Join a specific chatroom
     socket.on("joinRoom", ({ chatRoomId }) => {
-      socket.join(chatRoomId);
+      if (chatRoomId) {
+        socket.join(chatRoomId);
+        // console.log(`📥 User ${userId} joined room: ${chatRoomId}`);
+      }
     });
 
+    // Leave a specific chatroom
     socket.on("leaveRoom", ({ chatRoomId }) => {
-      socket.leave(chatRoomId);
+      if (chatRoomId) {
+        socket.leave(chatRoomId);
+        // console.log(`📤 User ${userId} left room: ${chatRoomId}`);
+      }
     });
 
-    socket.on("disconnect", () => {
-      console.log("❌ Socket disconnected:", socket.id);
+    // Handle sending messages (optional - you might handle this via HTTP)
+    socket.on("sendMessage", ({ chatRoomId, message }) => {
+      if (chatRoomId && message) {
+        // console.log(`💬 Message sent to room ${chatRoomId}:`, message);
+        
+        // Broadcast to everyone in the room (including sender)
+        io.to(chatRoomId).emit("newMessage", message);
+      }
+    });
+
+    // Handle disconnection
+    socket.on("disconnect", (reason) => {
+      // console.log(`❌ User ${userId} disconnected (Reason: ${reason})`);
+    });
+
+    // Handle connection errors
+    socket.on("error", (error) => {
+      console.error(`🔴 Socket error for user ${userId}:`, error);
     });
   });
 
+  // Store io instance for access in routes
   return io;
 };
 

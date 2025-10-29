@@ -157,7 +157,8 @@ exports.Prisma.ChatMemberScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   chatRoomId: 'chatRoomId',
-  joinedAt: 'joinedAt'
+  joinedAt: 'joinedAt',
+  lastReadAt: 'lastReadAt'
 };
 
 exports.Prisma.MessageScalarFieldEnum = {
@@ -165,6 +166,10 @@ exports.Prisma.MessageScalarFieldEnum = {
   chatRoomId: 'chatRoomId',
   userId: 'userId',
   content: 'content',
+  type: 'type',
+  mediaUrl: 'mediaUrl',
+  duration: 'duration',
+  readers: 'readers',
   createdAt: 'createdAt',
   system: 'system'
 };
@@ -183,7 +188,12 @@ exports.Prisma.NullsOrder = {
   first: 'first',
   last: 'last'
 };
-
+exports.MessageType = exports.$Enums.MessageType = {
+  TEXT: 'TEXT',
+  AUDIO: 'AUDIO',
+  IMAGE: 'IMAGE',
+  SYSTEM: 'SYSTEM'
+};
 
 exports.Prisma.ModelName = {
   User: 'User',
