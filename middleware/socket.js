@@ -11,7 +11,7 @@ const setupSocket = (server) => {
       methods: ["GET", "POST"],
       credentials: true
     },
-    transports: ["websocket", "polling"],
+    transports: ["websocket"],
     path: "/socket.io/",
     pingTimeout: 60000,
     pingInterval: 25000,
