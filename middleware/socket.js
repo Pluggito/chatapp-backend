@@ -12,8 +12,17 @@ const setupSocket = (server) => {
       credentials: true
     },
     transports: ["websocket", "polling"],
+    path: "/socket.io/",
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
+    allowEIO3: true,
+    cookies: {
+      name: "io",
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "none"
+    }
   });
 
   io.on("connection", (socket) => {
