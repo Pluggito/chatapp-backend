@@ -36,7 +36,7 @@ app.use('/chatserver/chat', require('./routes/chatroomroutes'));
 app.use('/chatserver/users', require('./routes/userroutes'));
 
 // ==================== HEALTH CHECK ====================
-app.get("/health", (req, res) => {
+app.get("/chatserver/health", (req, res) => {
   res.json({ 
     status: "ok", 
     timestamp: new Date().toISOString(),
