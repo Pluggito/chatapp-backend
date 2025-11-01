@@ -3,7 +3,6 @@ const cookieParser = require('cookie-parser');
 const cors = require("cors");
 const http = require('http');
 const setupSocket = require("./middleware/socket");
-
 const app = express();
 const port = process.env.PORT || 3050;
 const server = http.createServer(app);

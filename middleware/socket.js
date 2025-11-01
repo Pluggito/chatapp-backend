@@ -26,21 +26,21 @@ const setupSocket = (server) => {
   });
 
   io.on("connection", (socket) => {
-    console.log("✅ Socket connected:", socket.id);
+    // console.log("✅ Socket connected:", socket.id);
 
     const userId = socket.handshake.query.userId;
     
     // Join user's personal room for direct notifications
     if (userId) {
       socket.join(userId);
-      console.log(`👤 User ${userId} joined personal room`);
+      // console.log(`👤 User ${userId} joined personal room`);
     }
 
     // ==================== JOIN CHAT ROOM ====================
     socket.on("joinRoom", async ({ chatRoomId }) => {
       try {
         socket.join(chatRoomId);
-        console.log(`📥 Socket ${socket.id} joined room ${chatRoomId}`);
+      //  console.log(`📥 Socket ${socket.id} joined room ${chatRoomId}`);
 
         // Update lastReadAt when joining room
         if (userId) {
@@ -55,14 +55,14 @@ const setupSocket = (server) => {
           });
         }
       } catch (error) {
-        console.error("Error joining room:", error);
+        // console.error("Error joining room:", error);
       }
     });
 
     // ==================== LEAVE CHAT ROOM ====================
     socket.on("leaveRoom", ({ chatRoomId }) => {
       socket.leave(chatRoomId);
-      console.log(`📤 Socket ${socket.id} left room ${chatRoomId}`);
+     // console.log(`📤 Socket ${socket.id} left room ${chatRoomId}`);
     });
 
     // ==================== SEND MESSAGE ====================
@@ -153,10 +153,10 @@ const setupSocket = (server) => {
           });
         });
 
-        console.log(`📨 Message sent in room ${chatRoomId} by user ${userId}`);
+      //  console.log(`📨 Message sent in room ${chatRoomId} by user ${userId}`);
 
       } catch (error) {
-        console.error("Error sending message:", error);
+        // console.error("Error sending message:", error);
         socket.emit("error", { message: "Failed to send message" });
       }
     });
@@ -212,10 +212,10 @@ const setupSocket = (server) => {
           });
         });
 
-        console.log(`✅ Messages marked as read by ${userId} in room ${chatRoomId}`);
+      //  console.log(`✅ Messages marked as read by ${userId} in room ${chatRoomId}`);
 
       } catch (error) {
-        console.error("Error marking messages as read:", error);
+      //  console.error("Error marking messages as read:", error);
       }
     });
 
@@ -229,7 +229,7 @@ const setupSocket = (server) => {
         userId: userId
       });
 
-      console.log(`⌨️ User ${userId} started typing in room ${chatRoomId}`);
+      // console.log(`⌨️ User ${userId} started typing in room ${chatRoomId}`);
     });
 
     socket.on("typing:stop", ({ chatRoomId }) => {
@@ -241,12 +241,12 @@ const setupSocket = (server) => {
         userId: userId
       });
 
-      console.log(`⌨️ User ${userId} stopped typing in room ${chatRoomId}`);
+      // console.log(`⌨️ User ${userId} stopped typing in room ${chatRoomId}`);
     });
 
     // ==================== DISCONNECT ====================
     socket.on("disconnect", () => {
-      console.log("❌ Socket disconnected:", socket.id);
+      // console.log("❌ Socket disconnected:", socket.id);
     });
   });
 
