@@ -4,12 +4,9 @@ const prisma = require("../lib/prisma");
 const setupSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: [
-        "https://convo-chat-xi.vercel.app",
-        "http://localhost:5173"
-      ],
-      methods: ["GET", "POST"],
-      credentials: true
+      origin: ["https://convo-chat-xi.vercel.app", "http://localhost:5173"],
+      methods: ["GET", "POST", "DELETE"],
+      credentials: true,
     },
     transports: ["websocket"],
     path: "/socket.io/",
@@ -21,15 +18,15 @@ const setupSocket = (server) => {
       path: "/",
       httpOnly: true,
       secure: true,
-      sameSite: "none"
-    }
+      sameSite: "none",
+    },
   });
 
   io.on("connection", (socket) => {
     // console.log("✅ Socket connected:", socket.id);
 
     const userId = socket.handshake.query.userId;
-    
+
     // Join user's personal room for direct notifications
     if (userId) {
       socket.join(userId);
@@ -40,18 +37,18 @@ const setupSocket = (server) => {
     socket.on("joinRoom", async ({ chatRoomId }) => {
       try {
         socket.join(chatRoomId);
-      //  console.log(`📥 Socket ${socket.id} joined room ${chatRoomId}`);
+        //  console.log(`📥 Socket ${socket.id} joined room ${chatRoomId}`);
 
         // Update lastReadAt when joining room
         if (userId) {
           await prisma.chatMember.updateMany({
             where: {
               userId: userId,
-              chatRoomId: chatRoomId
+              chatRoomId: chatRoomId,
             },
             data: {
-              lastReadAt: new Date()
-            }
+              lastReadAt: new Date(),
+            },
           });
         }
       } catch (error) {
@@ -62,13 +59,19 @@ const setupSocket = (server) => {
     // ==================== LEAVE CHAT ROOM ====================
     socket.on("leaveRoom", ({ chatRoomId }) => {
       socket.leave(chatRoomId);
-     // console.log(`📤 Socket ${socket.id} left room ${chatRoomId}`);
+      // console.log(`📤 Socket ${socket.id} left room ${chatRoomId}`);
     });
 
     // ==================== SEND MESSAGE ====================
     socket.on("message:send", async (data) => {
       try {
-        const { chatRoomId, content, type = "TEXT", mediaUrl = null, duration = null } = data;
+        const {
+          chatRoomId,
+          content,
+          type = "TEXT",
+          mediaUrl = null,
+          duration = null,
+        } = data;
 
         // Validate required fields
         if (!chatRoomId || !userId) {
@@ -81,9 +84,9 @@ const setupSocket = (server) => {
           where: {
             userId_chatRoomId: {
               userId: userId,
-              chatRoomId: chatRoomId
-            }
-          }
+              chatRoomId: chatRoomId,
+            },
+          },
         });
 
         if (!membership) {
@@ -101,7 +104,7 @@ const setupSocket = (server) => {
             mediaUrl: mediaUrl,
             duration: duration,
             readers: [], // Initialize as empty array
-            system: false
+            system: false,
           },
           include: {
             user: {
@@ -109,16 +112,16 @@ const setupSocket = (server) => {
                 id: true,
                 firstName: true,
                 lastName: true,
-                username: true
-              }
-            }
-          }
+                username: true,
+              },
+            },
+          },
         });
 
         // Update chatroom timestamp
         await prisma.chatRoom.update({
           where: { id: chatRoomId },
-          data: { updatedAt: new Date() }
+          data: { updatedAt: new Date() },
         });
 
         // Transform message for frontend
@@ -133,13 +136,13 @@ const setupSocket = (server) => {
           sender: message.user,
           readers: message.readers,
           system: message.system,
-          chatRoomId: message.chatRoomId
+          chatRoomId: message.chatRoomId,
         };
 
         // Get all chat room members
         const members = await prisma.chatMember.findMany({
           where: { chatRoomId: chatRoomId },
-          select: { userId: true }
+          select: { userId: true },
         });
 
         // Emit to all members in the chat room
@@ -149,12 +152,11 @@ const setupSocket = (server) => {
         members.forEach((member) => {
           io.to(member.userId).emit("chatList:update", {
             chatRoomId: chatRoomId,
-            message: transformedMessage
+            message: transformedMessage,
           });
         });
 
-      //  console.log(`📨 Message sent in room ${chatRoomId} by user ${userId}`);
-
+        //  console.log(`📨 Message sent in room ${chatRoomId} by user ${userId}`);
       } catch (error) {
         // console.error("Error sending message:", error);
         socket.emit("error", { message: "Failed to send message" });
@@ -175,47 +177,46 @@ const setupSocket = (server) => {
           where: {
             id: { in: messageIds },
             chatRoomId: chatRoomId,
-            userId: { not: userId } // Don't mark own messages as read
+            userId: { not: userId }, // Don't mark own messages as read
           },
           data: {
             readers: {
-              push: userId // Add userId to readers array
-            }
-          }
+              push: userId, // Add userId to readers array
+            },
+          },
         });
 
         // Update member's lastReadAt
         await prisma.chatMember.updateMany({
           where: {
             userId: userId,
-            chatRoomId: chatRoomId
+            chatRoomId: chatRoomId,
           },
           data: {
-            lastReadAt: new Date()
-          }
+            lastReadAt: new Date(),
+          },
         });
 
         // Notify other members about read status
         const members = await prisma.chatMember.findMany({
-          where: { 
+          where: {
             chatRoomId: chatRoomId,
-            userId: { not: userId }
+            userId: { not: userId },
           },
-          select: { userId: true }
+          select: { userId: true },
         });
 
         members.forEach((member) => {
           io.to(member.userId).emit("message:readUpdate", {
             chatRoomId: chatRoomId,
             messageIds: messageIds,
-            readBy: userId
+            readBy: userId,
           });
         });
 
-      //  console.log(`✅ Messages marked as read by ${userId} in room ${chatRoomId}`);
-
+        //  console.log(`✅ Messages marked as read by ${userId} in room ${chatRoomId}`);
       } catch (error) {
-      //  console.error("Error marking messages as read:", error);
+        //  console.error("Error marking messages as read:", error);
       }
     });
 
@@ -226,7 +227,7 @@ const setupSocket = (server) => {
       // Broadcast to everyone in the room except sender
       socket.to(chatRoomId).emit("typing:show", {
         chatRoomId: chatRoomId,
-        userId: userId
+        userId: userId,
       });
 
       // console.log(`⌨️ User ${userId} started typing in room ${chatRoomId}`);
@@ -238,7 +239,7 @@ const setupSocket = (server) => {
       // Broadcast to everyone in the room except sender
       socket.to(chatRoomId).emit("typing:hide", {
         chatRoomId: chatRoomId,
-        userId: userId
+        userId: userId,
       });
 
       // console.log(`⌨️ User ${userId} stopped typing in room ${chatRoomId}`);
