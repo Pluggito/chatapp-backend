@@ -33,7 +33,7 @@ router.use(
 );
 
 // Apply token validation middleware to all routes
-//router.use(validateTokenHandler);
+router.use(validateTokenHandler);
 
 // Chatrooms
 router.post("/chatrooms", createOrGetChatRoom);
