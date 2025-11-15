@@ -1,11 +1,77 @@
 const prisma = require("../lib/prisma");
 const asyncHandler = require("express-async-handler");
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const { createUploadthing } = require("uploadthing/express");
 
+//===================== IMAGE UPLOAD SETUP ====================
+const f = createUploadthing();
+
+// uploader for images
+const uploadRouter = {
+  imageUploader: f({
+    image: {
+      maxFileSize: "4MB", // Can use string format
+      maxFileCount: 1,
+    },
+  })
+    .middleware(async ({ req, input }) => {
+      const userId =
+        req.user?.id || input?.userId || req.headers?.["x-user-id"];
+      const chatRoomId =
+        req.body?.chatRoomId || req.query?.chatRoomId || input?.chatRoomId;
+
+      console.log(
+        "🔐 UploadThing Middleware - User:",
+        userId,
+        "ChatRoom:",
+        chatRoomId
+      );
+
+      if (!userId) {
+        throw new Error("Unauthorized - User not found");
+      }
+
+      if (chatRoomId) {
+        // Verify user has access to this chat room
+        const isMember = await prisma.chatMember.findUnique({
+          where: {
+            userId_chatRoomId: {
+              userId: userId,
+              chatRoomId: chatRoomId,
+            },
+          },
+        });
+
+        if (!isMember) {
+          throw new Error("Not authorized to upload to this chat");
+        }
+      }
+
+      return { userId, chatRoomId };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      console.log("✅ Image upload complete!");
+      console.log("  User ID:", metadata.userId);
+      console.log("  Chat Room ID:", metadata.chatRoomId);
+      console.log("  File URL:", file.url);
+      console.log("  File Size:", (file.size / 1024).toFixed(2) + "KB");
+      console.log("  File Name:", file.name);
+
+      return {
+        uploadedBy: metadata.userId,
+        url: file.url,
+        chatRoomId: metadata.chatRoomId,
+      };
+    }),
+};
+
+const uploadthingRouter = uploadRouter;
+
+// ==================== AUDIO UPLOAD SETUP ====================
 // Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../uploads/audio');
+const uploadsDir = path.join(__dirname, "../uploads/audio");
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -16,7 +82,7 @@ const storage = multer.diskStorage({
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
     cb(null, `voice-note-${uniqueSuffix}${ext}`);
   },
@@ -24,11 +90,19 @@ const storage = multer.diskStorage({
 
 // File filter - only accept audio files
 const fileFilter = (req, file, cb) => {
-  const allowedMimes = ['audio/webm', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/aac', 'audio/mp4'];
+  const allowedMimes = [
+    "audio/webm",
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/ogg",
+    "audio/aac",
+    "audio/mp4",
+  ];
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only audio files are allowed.'), false);
+    cb(new Error("Invalid file type. Only audio files are allowed."), false);
   }
 };
 
@@ -42,12 +116,12 @@ const upload = multer({
 });
 
 // Export multer middleware
-const uploadAudio = upload.single('audio');
+const uploadAudio = upload.single("audio");
 
 // ==================== UPLOAD AUDIO HANDLER ====================
 const handleAudioUpload = asyncHandler(async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No audio file provided' });
+    return res.status(400).json({ error: "No audio file provided" });
   }
 
   const { chatRoomId } = req.body;
@@ -55,7 +129,7 @@ const handleAudioUpload = asyncHandler(async (req, res) => {
   if (!chatRoomId) {
     // Delete uploaded file if validation fails
     fs.unlinkSync(req.file.path);
-    return res.status(400).json({ error: 'Chat room ID is required' });
+    return res.status(400).json({ error: "Chat room ID is required" });
   }
 
   // Verify user has access to this chat room (optional but recommended)
@@ -64,23 +138,27 @@ const handleAudioUpload = asyncHandler(async (req, res) => {
       where: {
         userId_chatRoomId: {
           userId: req.user.id,
-          chatRoomId: chatRoomId
-        }
-      }
+          chatRoomId: chatRoomId,
+        },
+      },
     });
 
     if (!isMember) {
       fs.unlinkSync(req.file.path);
-      return res.status(403).json({ error: 'Not authorized to upload to this chat' });
+      return res
+        .status(403)
+        .json({ error: "Not authorized to upload to this chat" });
     }
   }
 
   // Generate public URL
-  const fileUrl = `${req.protocol}://${req.get('host')}/uploads/audio/${req.file.filename}`;
+  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/audio/${
+    req.file.filename
+  }`;
 
-  console.log('✅ Audio uploaded:', {
+  console.log("✅ Audio uploaded:", {
     filename: req.file.filename,
-    size: (req.file.size / 1024).toFixed(2) + 'KB',
+    size: (req.file.size / 1024).toFixed(2) + "KB",
     chatRoomId,
   });
 
@@ -100,11 +178,126 @@ const deleteAudio = asyncHandler(async (req, res) => {
 
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
-    console.log('🗑️ Audio deleted:', filename);
-    res.status(200).json({ success: true, message: 'Audio deleted' });
+    console.log("🗑️ Audio deleted:", filename);
+    res.status(200).json({ success: true, message: "Audio deleted" });
   } else {
-    res.status(404).json({ error: 'Audio file not found' });
+    res.status(404).json({ error: "Audio file not found" });
   }
+});
+
+// ==================== IMAGE MESSAGE HANDLER ====================
+const handleImageUpload = asyncHandler(async (req, res) => {
+  const { chatRoomId } = req.params; // Get from URL params
+  const { imageUrl, senderId, caption } = req.body;
+
+  // Validate required fields
+  if (!imageUrl || !senderId) {
+    return res.status(400).json({
+      error: "imageUrl and senderId are required",
+    });
+  }
+
+  // Verify user is a member of this chat room
+  const isMember = await prisma.chatMember.findUnique({
+    where: {
+      userId_chatRoomId: {
+        userId: senderId,
+        chatRoomId: chatRoomId,
+      },
+    },
+  });
+
+  if (!isMember) {
+    return res.status(403).json({
+      error: "Not authorized to send messages to this chat",
+    });
+  }
+
+  // Create the image message
+  const message = await prisma.message.create({
+    data: {
+      chatRoomId: chatRoomId,
+      userId: senderId,
+      content: caption || null,
+      type: "IMAGE",
+      mediaUrl: imageUrl,
+      readers: [senderId],
+      system: false,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+        },
+      },
+    },
+  });
+
+  // Update chatroom timestamp
+  await prisma.chatRoom.update({
+    where: { id: chatRoomId },
+    data: { updatedAt: new Date() },
+  });
+
+  const transformedMessage = {
+    id: message.id,
+    content: message.content,
+    type: message.type,
+    mediaUrl: message.mediaUrl,
+    duration: message.duration,
+    createdAt: message.createdAt,
+    senderId: message.userId,
+    sender: message.user,
+    readers: message.readers,
+    system: message.system,
+    chatRoomId: message.chatRoomId,
+  };
+
+  // Emit to chat room via Socket.io
+  const io = req.app.get("io");
+  if (io) {
+    io.to(chatRoomId).emit("message:received", transformedMessage);
+
+    // Update chat list for all members
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { id: chatRoomId },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                username: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (chatRoom) {
+      chatRoom.members.forEach((member) => {
+        io.to(member.userId).emit("chatList:update", {
+          chatRoomId: chatRoomId,
+          message: transformedMessage,
+        });
+      });
+    }
+  }
+
+  console.log("✅ Image message sent:", {
+    messageId: message.id,
+    imageUrl,
+    chatRoomId,
+    hasCaption: !!caption,
+  });
+
+  res.status(201).json(transformedMessage);
 });
 
 // ==================== EXISTING MESSAGE HANDLERS ====================
@@ -118,7 +311,7 @@ const getMessages = asyncHandler(async (req, res) => {
   const messages = await prisma.message.findMany({
     where: {
       chatRoomId: chatRoomId,
-      system: { not: true }
+      system: { not: true },
     },
     include: {
       user: {
@@ -126,13 +319,13 @@ const getMessages = asyncHandler(async (req, res) => {
           id: true,
           firstName: true,
           lastName: true,
-          username: true
-        }
-      }
+          username: true,
+        },
+      },
     },
     orderBy: { createdAt: "asc" },
     skip: skip,
-    take: parseInt(limit)
+    take: parseInt(limit),
   });
 
   const transformedMessages = messages.map((message) => ({
@@ -147,7 +340,7 @@ const getMessages = asyncHandler(async (req, res) => {
     readers: message.readers,
     system: message.system,
     chatRoomId: message.chatRoomId,
-    isRead: currentUserId ? message.readers.includes(currentUserId) : false
+    isRead: currentUserId ? message.readers.includes(currentUserId) : false,
   }));
 
   res.json(transformedMessages);
@@ -155,18 +348,28 @@ const getMessages = asyncHandler(async (req, res) => {
 
 const sendMessage = asyncHandler(async (req, res) => {
   const { chatRoomId } = req.params;
-  const { senderId, content, type = "TEXT", mediaUrl = null, duration = null } = req.body;
+  const {
+    senderId,
+    content,
+    type = "TEXT",
+    mediaUrl = null,
+    duration = null,
+  } = req.body;
 
   if (!senderId) {
     return res.status(400).json({ error: "Sender ID is required" });
   }
 
   if (type === "TEXT" && !content) {
-    return res.status(400).json({ error: "Content is required for text messages" });
+    return res
+      .status(400)
+      .json({ error: "Content is required for text messages" });
   }
 
   if ((type === "AUDIO" || type === "IMAGE") && !mediaUrl) {
-    return res.status(400).json({ error: "Media URL is required for audio/image messages" });
+    return res
+      .status(400)
+      .json({ error: "Media URL is required for audio/image messages" });
   }
 
   const chatRoom = await prisma.chatRoom.findFirst({
@@ -174,9 +377,9 @@ const sendMessage = asyncHandler(async (req, res) => {
       id: chatRoomId,
       members: {
         some: {
-          userId: String(senderId)
-        }
-      }
+          userId: String(senderId),
+        },
+      },
     },
     include: {
       members: {
@@ -186,16 +389,18 @@ const sendMessage = asyncHandler(async (req, res) => {
               id: true,
               firstName: true,
               lastName: true,
-              username: true
-            }
-          }
-        }
-      }
-    }
+              username: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!chatRoom) {
-    return res.status(404).json({ error: "Chat room not found or access denied" });
+    return res
+      .status(404)
+      .json({ error: "Chat room not found or access denied" });
   }
 
   const message = await prisma.message.create({
@@ -207,7 +412,7 @@ const sendMessage = asyncHandler(async (req, res) => {
       mediaUrl: mediaUrl,
       duration: duration,
       readers: [],
-      system: false
+      system: false,
     },
     include: {
       user: {
@@ -215,15 +420,15 @@ const sendMessage = asyncHandler(async (req, res) => {
           id: true,
           firstName: true,
           lastName: true,
-          username: true
-        }
-      }
-    }
+          username: true,
+        },
+      },
+    },
   });
 
   await prisma.chatRoom.update({
     where: { id: chatRoomId },
-    data: { updatedAt: new Date() }
+    data: { updatedAt: new Date() },
   });
 
   const transformedMessage = {
@@ -237,7 +442,7 @@ const sendMessage = asyncHandler(async (req, res) => {
     sender: message.user,
     readers: message.readers,
     system: message.system,
-    chatRoomId: message.chatRoomId
+    chatRoomId: message.chatRoomId,
   };
 
   const io = req.app.get("io");
@@ -248,7 +453,7 @@ const sendMessage = asyncHandler(async (req, res) => {
     chatRoom.members.forEach((member) => {
       io.to(member.userId).emit("chatList:update", {
         chatRoomId: chatRoomId,
-        message: transformedMessage
+        message: transformedMessage,
       });
     });
   }
@@ -269,9 +474,9 @@ const getUnreadCount = asyncHandler(async (req, res) => {
       chatRoomId: chatRoomId,
       userId: { not: currentUserId },
       readers: {
-        none: currentUserId
-      }
-    }
+        none: currentUserId,
+      },
+    },
   });
 
   res.json({ unreadCount });
@@ -281,7 +486,9 @@ module.exports = {
   getMessages,
   sendMessage,
   getUnreadCount,
-  uploadAudio,        // Export multer middleware
-  handleAudioUpload,  // Export handler
-  deleteAudio        // Export delete handler (optional)
+  uploadAudio, // Export multer middleware
+  handleAudioUpload, // Export handler
+  deleteAudio, // Export delete handler (optional)
+  handleImageUpload,
+  uploadthingRouter,
 };
