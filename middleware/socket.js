@@ -4,7 +4,11 @@ const prisma = require("../lib/prisma");
 const setupSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: ["https://convo-chat-xi.vercel.app", "http://localhost:5173"],
+      origin: [
+        "https://convo-chat-xi.vercel.app",
+        "http://localhost:5173",
+        "https://dailies-social.vercel.app/",
+      ],
       methods: ["GET", "POST", "DELETE"],
       credentials: true,
     },
